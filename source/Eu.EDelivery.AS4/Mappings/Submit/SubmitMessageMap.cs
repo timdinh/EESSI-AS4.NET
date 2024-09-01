@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography.Xml;
 using Eu.EDelivery.AS4.Factories;
 using Eu.EDelivery.AS4.Mappings.PMode;
 using Eu.EDelivery.AS4.Model.Common;
@@ -148,25 +149,46 @@ namespace Eu.EDelivery.AS4.Mappings.Submit
             return SendingPModeMap.ResolveService(sendingPMode);
         }
 
+        private static readonly MessageProperty[] cyruspayProductMessageProperties =
+        {
+            new MessageProperty("BMS Name", "Cyruspay"),
+            new MessageProperty("BMS Version", "1.0"),
+            new MessageProperty("ProductID", "91503"), // ATO issued
+            new MessageProperty("BMS Vendor", "Cashbook Genie Pty Ltd")
+        };
+
+
         private static IEnumerable<MessageProperty> ResolveMessageProperties(
             SubmitMessage submit,
             SendingProcessingMode sendingPMode)
         {
+            var list = new List<MessageProperty>();
+
             if (submit.MessageProperties != null)
             {
                 foreach (Model.Common.MessageProperty p in submit.MessageProperties)
                 {
-                    yield return new MessageProperty(p?.Name, p?.Value, p?.Type);
+                    list.Add( new MessageProperty(p?.Name, p?.Value, p?.Type));
                 }
             }
 
             if (sendingPMode.MessagePackaging?.MessageProperties != null)
             {
-                foreach (Model.PMode.MessageProperty p in sendingPMode.MessagePackaging.MessageProperties)
+                foreach (Model.PMode.MessageProperty p in sendingPMode.MessagePackaging?.MessageProperties)
                 {
-                    yield return new MessageProperty(p?.Name, p?.Value, p?.Type);
+                    list.Add( new MessageProperty(p?.Name, p?.Value, p?.Type));
                 }
             }
+
+            foreach (var p in cyruspayProductMessageProperties)
+            {
+                if (!list.Any(x=>x.Name == p.Name))
+                {
+                    list.Add(p);
+                }
+            }
+
+            return list;
         }
 
         private static string ResolveMpc(SubmitMessage submit, SendingProcessingMode sendingPMode)

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Org.BouncyCastle.Asn1.Mozilla;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace Eu.EDelivery.AS4
@@ -23,8 +24,9 @@ namespace Eu.EDelivery.AS4
         public static class HashFunctions
         {
             public const string Sha256 = "http://www.w3.org/2001/04/xmlenc#sha256";
+            public const string Sha1 = "http://www.w3.org/2000/09/xmldsig#sha1";
 
-            public static readonly HashSet<string> SupportedAlgorithms = new HashSet<string> { Sha256 };
+            public static readonly HashSet<string> SupportedAlgorithms = new HashSet<string> { Sha256, Sha1 };
 
             public static bool IsSupported(string hashFunction)
             {
