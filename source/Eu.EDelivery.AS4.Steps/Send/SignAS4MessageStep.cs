@@ -12,6 +12,12 @@ using Eu.EDelivery.AS4.Model.Core;
 using Eu.EDelivery.AS4.Security.Signing;
 using Eu.EDelivery.AS4.Services.Journal;
 
+using Abr.SecurityTokenManager;
+using System.Globalization;
+using Abr.AuskeyManager.KeyStore;
+using System.Xml;
+
+
 namespace Eu.EDelivery.AS4.Steps.Send
 {
     /// <summary>
@@ -97,6 +103,9 @@ namespace Eu.EDelivery.AS4.Steps.Send
                     signingAlgorithm: signInfo.Algorithm,
                     hashFunction: signInfo.HashFunction);
 
+            var securityToken = GetSecurityToken(certificate);
+            messagingContext.AS4Message.SecurityHeader = CreateSecurityHeader(securityToken);
+
             SignAS4Message(settings, messagingContext.AS4Message);
 
             JournalLogEntry logEntry = JournalLogEntry.CreateFrom(
@@ -107,6 +116,79 @@ namespace Eu.EDelivery.AS4.Steps.Send
             return await StepResult
                 .Success(messagingContext)
                 .WithJournalAsync(logEntry);
+        }
+
+        
+        private SecurityToken GetSecurityToken(X509Certificate2 certificate)
+        {
+            // ATO lib required this
+            AbrProperties.SetSoftwareInfo(
+                organisation: "Cashbook Genie Pty Ltd",
+                product: "Cyruspay",
+                version: "1",
+                timestamp: DateTime.Now.ToString(CultureInfo.InvariantCulture));
+
+            // "https://test.sbr.gov.au/services"
+            var appliesTo = System.Configuration.ConfigurationManager.AppSettings.Get("abr.SecurityTokenManager.STS.appliesTo");
+            Logger.Trace($"SecurityTokenManager appliesTo: {appliesTo}");
+
+            var stm = new SecurityTokenManager();
+            return stm.GetSecurityIdentityToken(appliesTo, "", certificate);
+        }
+        
+        private SecurityHeader CreateSecurityHeader(SecurityToken securityToken)
+        {
+            var security =
+            $"<wsse:Security xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">{securityToken.AssertionAsString}</wsse:Security>";
+
+            security = AddAttributesToEncryptedAssertion(security);
+
+            var d = new XmlDocument();
+            d.LoadXml(security);
+
+            return new SecurityHeader(d.DocumentElement);
+        }
+
+        private const string WSU_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd";
+        private const string WSU_ID_ATTRIBUTE_NAME = "Id";
+
+        private XmlNamespaceManager GetNamespaceManager()
+        {
+            XmlNamespaceManager namespaceManager = new XmlNamespaceManager(new NameTable());
+            namespaceManager.AddNamespace("soapenv", "http://schemas.xmlsoap.org/soap/envelope/");
+            namespaceManager.AddNamespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion");
+            namespaceManager.AddNamespace("xenc", "http://www.w3.org/2001/04/xmlenc#");
+            namespaceManager.AddNamespace("wsu", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd");
+            namespaceManager.AddNamespace("s12", "http://www.w3.org/2003/05/soap-envelope");
+            namespaceManager.AddNamespace("wsse", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd");
+
+            return namespaceManager;
+        }
+
+        private string AddAttributesToEncryptedAssertion(string xmlString)
+        {
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.LoadXml(xmlString);
+
+            XmlNode securityNode = xmlDoc.SelectSingleNode("//wsse:Security", GetNamespaceManager());
+            var mustUnderstand = xmlDoc.CreateAttribute("s12", "mustUnderstand", "http://www.w3.org/2003/05/soap-envelope");
+            mustUnderstand.Value = "true";
+            securityNode.Attributes.Append(mustUnderstand);
+
+            // Get the saml:EncryptedAssertion node
+            XmlNode encryptedAssertionNode = xmlDoc.SelectSingleNode("//saml:EncryptedAssertion", GetNamespaceManager());
+
+            // Add the xmlns:wsu attribute
+            XmlAttribute wsuAttribute = xmlDoc.CreateAttribute("xmlns:wsu");
+            wsuAttribute.Value = WSU_NS;
+            encryptedAssertionNode.Attributes.Append(wsuAttribute);
+
+            // Add the wsu:Id attribute
+            XmlAttribute wsuIdAttribute = xmlDoc.CreateAttribute(WSU_ID_ATTRIBUTE_NAME, WSU_NS);
+            wsuIdAttribute.Value = "soapheader-2";
+            encryptedAssertionNode.Attributes.Append(wsuIdAttribute);
+
+            return xmlDoc.OuterXml;
         }
 
         private static Signing RetrieveSigningInformation(

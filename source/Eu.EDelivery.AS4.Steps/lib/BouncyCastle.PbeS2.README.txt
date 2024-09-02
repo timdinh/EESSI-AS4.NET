@@ -1,0 +1,26 @@
+This release adds non-default PRFs to PKCS5v2.
+
+Source is hosted at https://github.com/bartland/bc-csharp/tree/pkcs5v2sha2
+
+It is based on https://github.com/bcgit/bc-csharp/tree/master version 1.8.0-RC.1
+forked to https://github.com/bartland/bc-csharp/tree/master
+
+Source code difference:
+* asn1/pkcs/PBKDF2Params.cs is modified to support sha256, etc.
+
+(Note that, to minimise differences, high level support via security/PbeUtilities.cs is not provided).
+
+Binary:
+* built with VS 2008
+* BouncyCastle.PbeS2.Crypto, Version=1.8.0.0, Culture=neutral, PublicKeyToken=6c46cd4a525665dd
+* Assembly FileVersion: 1.8.0.3
+
+This fork will remain until BC csharp fully supports PKCS5v2 as per the Java version.
+
+The changes are compatible with BouncyCastle Java version 1.51 and openssl 1.0.1j.
+
+  File: BouncyCastle.PbeS2.Crypto.dll
+CRC-32: 05093097
+   MD4: 1d5f5cfd37996b0ee6ffacccc3bc13de
+   MD5: 0d2bc2fb1415130f5f38436de5216b86
+ SHA-1: c9ae2f8a7fb556739b4881299b4b56bfea6015c1
